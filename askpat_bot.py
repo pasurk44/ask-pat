@@ -3,7 +3,6 @@ from slack_bolt.adapter.flask import SlackRequestHandler
 from flask import Flask, request
 import os
 
-# Initialize Slack app
 app = App(
     token=os.environ.get("SLACK_BOT_TOKEN"),
     signing_secret=os.environ.get("SLACK_SIGNING_SECRET")
@@ -19,17 +18,27 @@ def handle_askpat(ack, respond, command):
     print(f"Received command: {user_input}")
 
     if "time off" in user_input:
-        reply = "> 🌴 Unlimited PTO, but don’t ghost. Give your team a heads-up and log it in GCal.\n> Details: https://www.notion.so/teammetronome/People-and-Talent-174606305b6d80a497e9c1e0e31fea0b#pto-policy"
-    elif "gimme money" in user_input:
-        reply = "> 💸 Ha! Nice try, capitalist. Talk to your manager and check the Comp Philosophy doc on HR Notion."
+        reply = "> 🌴 Unlimited PTO. Give your team a heads-up and log it in GCal.\n> [Policy](https://www.notion.so/teammetronome/People-and-Talent-174606305b6d80a497e9c1e0e31fea0b#pto-policy)"
+    elif "gimme money" in user_input or "raise" in user_input:
+        reply = "> 💸 Ha! Nice try, capitalist. Check the Comp Philosophy doc on Notion."
     elif "burnout" in user_input:
-        reply = "> 🚨 Burnout alert triggered. Grab some time off — seriously.\n> Block a day in GCal and check our Mental Health resources."
+        reply = "> 🚨 Burnout alert triggered. Take time off.\n> Block a day in GCal and check our Mental Health resources."
     elif "benefits" in user_input:
-        reply = "> 🩺 Benefits run through Gusto. Forgot your login? Reset it at https://gusto.com or ping #people-team."
+        reply = "> 🩺 Benefits = Gusto. Forgot login? Reset at https://gusto.com or ping #people-team."
     elif "dance" in user_input:
-        reply = "> 🪩 HR rave protocol activated by Pat...\n> 🕺💃 You're now eligible for the Mandatory Midweek Boogie. See #fun-times."
+        reply = "> 🪩 HR rave protocol activated by Pat...\n> 🕺💃 You're now eligible for the Midweek Boogie. Join #fun-times."
+    elif "stock" in user_input:
+        reply = "> 📈 Stock options are outlined in your offer letter. Equity doc lives on Notion."
+    elif "onboarding" in user_input:
+        reply = "> 👋 New here? Welcome! Start with our onboarding flow: https://www.notion.so/teammetronome/People-and-Talent"
+    elif "offboarding" in user_input:
+        reply = "> 👋 Wrapping up? Ping #people-team for offboarding steps. We'll miss you. 💔"
+    elif "payroll" in user_input:
+        reply = "> 💸 Payroll runs on the 15th and end of month via Gusto."
+    elif "performance" in user_input or "perf" in user_input:
+        reply = "> 📊 Performance reviews happen mid-year and annually. Timeline is in the People Notion."
     else:
-        reply = "> 🤷‍♀️ No clue. Check the People & Talent Notion — it’s smarter than me:\n> https://www.notion.so/teammetronome/People-and-Talent-174606305b6d80a497e9c1e0e31fea0b"
+        reply = "> 🤷‍♀️ Not sure. Check the People & Talent Notion — it’s smarter than me:\n> https://www.notion.so/teammetronome/People-and-Talent-174606305b6d80a497e9c1e0e31fea0b"
 
     respond(reply)
 

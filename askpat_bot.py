@@ -1,13 +1,19 @@
 from slack_bolt import App
 from slack_bolt.adapter.flask import SlackRequestHandler
 from flask import Flask, request
+from notion_client import Client
 import os
 
+# Slack app setup
 app = App(
     token=os.environ.get("SLACK_BOT_TOKEN"),
     signing_secret=os.environ.get("SLACK_SIGNING_SECRET")
 )
 
+# Notion client setup
+notion = Client(auth=os.environ.get("NOTION_API_KEY"))
+
+# Flask server
 flask_app = Flask(__name__)
 handler = SlackRequestHandler(app)
 
@@ -37,6 +43,15 @@ def handle_askpat(ack, respond, command):
         reply = "> 💸 Payroll runs on the 15th and end of month via Gusto."
     elif "performance" in user_input or "perf" in user_input:
         reply = "> 📊 Performance reviews happen mid-year and annually. Timeline is in the People Notion."
+    elif "test notion" in user_input:
+        # Example: test Notion API by reading the HR hub page title
+        try:
+            page_id = "174606305b6d80a497e9c1e0e31fea0b"
+            page = notion.pages.retrieve(page_id=page_id)
+            title = page.get("properties", {}).get("title", {}).get("title", [{}])[0].get("text", {}).get("content", "No title found")
+            reply = f"> 🧠 Notion test worked. Page title: {title}"
+        except Exception as e:
+            reply = f"> ⚠️ Notion API error: {e}"
     else:
         reply = "> 🤷‍♀️ Not sure. Check the People & Talent Notion — it’s smarter than me:\n> https://www.notion.so/teammetronome/People-and-Talent-174606305b6d80a497e9c1e0e31fea0b"
 

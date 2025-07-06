@@ -10,4 +10,6 @@ services:
         sync: false
       - key: SLACK_SIGNING_SECRET
         sync: false
+      - key: NOTION_API_KEY
+        sync: false
     plan: free

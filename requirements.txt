@@ -2,3 +2,4 @@
 flask
 slack_bolt
 slack_sdk
+notion-client

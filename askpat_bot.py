@@ -53,45 +53,45 @@ def handle_askpat(ack, respond, command):
     user_id = command["user_id"]
 
     try:
-        notion_data = notion.databases.query(database_id=QA_DB_ID)["results"]
-        answer = find_best_answer(user_input, notion_data)
+        # TEMP: Skip Notion lookup to test fallback flow only
+answer = None
 
-        if answer:
-            respond(answer)
-        else:
-            log_unanswered_question(user_input, user_id)
-            respond(
-                blocks=[
+if answer:
+    respond(answer)
+else:
+    log_unanswered_question(user_input, user_id)
+    respond(
+        blocks=[
+            {
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": "> 🤷‍♂️ I couldn’t find an answer for: *{}*".format(user_input)
+                }
+            },
+            {
+                "type": "actions",
+                "elements": [
                     {
-                        "type": "section",
+                        "type": "button",
                         "text": {
-                            "type": "mrkdwn",
-                            "text": "> 🤷‍♂️ I couldn’t find an answer for: *{}*".format(user_input)
-                        }
+                            "type": "plain_text",
+                            "text": "📂 Open People Team Notion"
+                        },
+                        "url": "https://www.notion.so/teammetronome/People-and-Talent-174606305b6d80a497e9c1e0e31fea0b"
                     },
                     {
-                        "type": "actions",
-                        "elements": [
-                            {
-                                "type": "button",
-                                "text": {
-                                    "type": "plain_text",
-                                    "text": "📂 Open People Team Notion"
-                                },
-                                "url": "https://www.notion.so/teammetronome/People-and-Talent-174606305b6d80a497e9c1e0e31fea0b"
-                            },
-                            {
-                                "type": "button",
-                                "text": {
-                                    "type": "plain_text",
-                                    "text": "✉️ Email HR"
-                                },
-                                "url": "mailto:hr@metronome.com"
-                            }
-                        ]
+                        "type": "button",
+                        "text": {
+                            "type": "plain_text",
+                            "text": "✉️ Email HR"
+                        },
+                        "url": "mailto:hr@metronome.com"
                     }
                 ]
-            )
+            }
+        ]
+    )
     except Exception as e:
         respond(f"⚠️ Error querying Notion: {e}")
 

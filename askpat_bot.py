@@ -3,59 +3,97 @@ from slack_bolt.adapter.flask import SlackRequestHandler
 from flask import Flask, request
 from notion_client import Client
 import os
+from datetime import datetime
 
-# Slack app setup
+# Slack and Notion setup
 app = App(
     token=os.environ.get("SLACK_BOT_TOKEN"),
     signing_secret=os.environ.get("SLACK_SIGNING_SECRET")
 )
-
-# Notion client setup
 notion = Client(auth=os.environ.get("NOTION_API_KEY"))
+QA_DB_ID = "228606305b6d80e1b2ffd9432fc1bcd6"
+LOG_DB_ID = "229606305b6d80cfb5b4f9f761607f87"
 
-# Flask server
 flask_app = Flask(__name__)
 handler = SlackRequestHandler(app)
+
+def find_best_answer(user_input, notion_results):
+    input_lower = user_input.lower()
+    for result in notion_results:
+        try:
+            topic = result["properties"]["Topic"]["title"][0]["text"]["content"].lower()
+            answer = result["properties"]["Answer"]["rich_text"][0]["text"]["content"]
+            if any(keyword.strip() in input_lower for keyword in topic.split(",")):
+                return answer
+        except (KeyError, IndexError):
+            continue
+    return None
+
+def log_unanswered_question(query, user_id):
+    now = datetime.utcnow().isoformat()
+    try:
+        notion.pages.create(parent={"database_id": LOG_DB_ID}, properties={
+            "Query": {
+                "title": [{"text": {"content": query}}]
+            },
+            "User": {
+                "rich_text": [{"text": {"content": user_id}}]
+            },
+            "Date": {
+                "date": {"start": now}
+            }
+        })
+    except Exception as e:
+        print(f"Logging to Notion failed: {e}")
 
 @app.command("/askpat")
 def handle_askpat(ack, respond, command):
     ack()
-    user_input = command["text"].lower()
-    print(f"Received command: {user_input}")
+    user_input = command["text"]
+    user_id = command["user_id"]
 
-    if "time off" in user_input:
-        reply = "> 🌴 Unlimited PTO. Give your team a heads-up and log it in GCal.\n> [Policy](https://www.notion.so/teammetronome/People-and-Talent-174606305b6d80a497e9c1e0e31fea0b#pto-policy)"
-    elif "gimme money" in user_input or "raise" in user_input:
-        reply = "> 💸 Ha! Nice try, capitalist. Check the Comp Philosophy doc on Notion."
-    elif "burnout" in user_input:
-        reply = "> 🚨 Burnout alert triggered. Take time off.\n> Block a day in GCal and check our Mental Health resources."
-    elif "benefits" in user_input:
-        reply = "> 🩺 Benefits = Gusto. Forgot login? Reset at https://gusto.com or ping #people-team."
-    elif "dance" in user_input:
-        reply = "> 🪩 HR rave protocol activated by Pat...\n> 🕺💃 You're now eligible for the Midweek Boogie. Join #fun-times."
-    elif "stock" in user_input:
-        reply = "> 📈 Stock options are outlined in your offer letter. Equity doc lives on Notion."
-    elif "onboarding" in user_input:
-        reply = "> 👋 New here? Welcome! Start with our onboarding flow: https://www.notion.so/teammetronome/People-and-Talent"
-    elif "offboarding" in user_input:
-        reply = "> 👋 Wrapping up? Ping #people-team for offboarding steps. We'll miss you. 💔"
-    elif "payroll" in user_input:
-        reply = "> 💸 Payroll runs on the 15th and end of month via Gusto."
-    elif "performance" in user_input or "perf" in user_input:
-        reply = "> 📊 Performance reviews happen mid-year and annually. Timeline is in the People Notion."
-    elif "test notion" in user_input:
-        # Example: test Notion API by reading the HR hub page title
-        try:
-            page_id = "174606305b6d80a497e9c1e0e31fea0b"
-            page = notion.pages.retrieve(page_id=page_id)
-            title = page.get("properties", {}).get("title", {}).get("title", [{}])[0].get("text", {}).get("content", "No title found")
-            reply = f"> 🧠 Notion test worked. Page title: {title}"
-        except Exception as e:
-            reply = f"> ⚠️ Notion API error: {e}"
-    else:
-        reply = "> 🤷‍♀️ Not sure. Check the People & Talent Notion — it’s smarter than me:\n> https://www.notion.so/teammetronome/People-and-Talent-174606305b6d80a497e9c1e0e31fea0b"
+    try:
+        notion_data = notion.databases.query(database_id=QA_DB_ID)["results"]
+        answer = find_best_answer(user_input, notion_data)
 
-    respond(reply)
+        if answer:
+            respond(answer)
+        else:
+            log_unanswered_question(user_input, user_id)
+            respond(
+                blocks=[
+                    {
+                        "type": "section",
+                        "text": {
+                            "type": "mrkdwn",
+                            "text": "> 🤷‍♂️ I couldn’t find an answer for: *{}*".format(user_input)
+                        }
+                    },
+                    {
+                        "type": "actions",
+                        "elements": [
+                            {
+                                "type": "button",
+                                "text": {
+                                    "type": "plain_text",
+                                    "text": "📂 Open People Team Notion"
+                                },
+                                "url": "https://www.notion.so/teammetronome/People-and-Talent-174606305b6d80a497e9c1e0e31fea0b"
+                            },
+                            {
+                                "type": "button",
+                                "text": {
+                                    "type": "plain_text",
+                                    "text": "✉️ Email HR"
+                                },
+                                "url": "mailto:hr@metronome.com"
+                            }
+                        ]
+                    }
+                ]
+            )
+    except Exception as e:
+        respond(f"⚠️ Error querying Notion: {e}")
 
 @flask_app.route("/slack/events", methods=["POST"])
 def slack_events():

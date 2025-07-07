@@ -1,33 +1,20 @@
 from slack_bolt import App
 from slack_bolt.adapter.flask import SlackRequestHandler
 from flask import Flask, request
-from notion_client import Client
 import os
 from datetime import datetime
+from notion_client import Client
 
-# Slack and Notion setup
+# Slack + Notion setup
 app = App(
     token=os.environ.get("SLACK_BOT_TOKEN"),
     signing_secret=os.environ.get("SLACK_SIGNING_SECRET")
 )
 notion = Client(auth=os.environ.get("NOTION_API_KEY"))
-QA_DB_ID = "228606305b6d80e1b2ffd9432fc1bcd6"
-LOG_DB_ID = "229606305b6d80cfb5b4f9f761607f87"
+LOG_DB_ID = "229606305b6d80cfb5b4f9f761607f87"  # Unanswered questions DB
 
 flask_app = Flask(__name__)
 handler = SlackRequestHandler(app)
-
-def find_best_answer(user_input, notion_results):
-    input_lower = user_input.lower()
-    for result in notion_results:
-        try:
-            topic = result["properties"]["Topic"]["title"][0]["text"]["content"].lower()
-            answer = result["properties"]["Answer"]["rich_text"][0]["text"]["content"]
-            if any(keyword.strip() in input_lower for keyword in topic.split(",")):
-                return answer
-        except (KeyError, IndexError):
-            continue
-    return None
 
 def log_unanswered_question(query, user_id):
     now = datetime.utcnow().isoformat()
@@ -44,56 +31,45 @@ def log_unanswered_question(query, user_id):
             }
         })
     except Exception as e:
-        print(f"Logging to Notion failed: {e}")
+        print(f"[Logging Error] {e}")
 
 @app.command("/askpat")
 def handle_askpat(ack, respond, command):
     ack()
     user_input = command["text"]
     user_id = command["user_id"]
+    answer = None  # TEMP: skip Notion DB query
 
-    try:
-        # TEMP: Skip Notion lookup to test fallback flow only
-answer = None
-
-if answer:
-    respond(answer)
-else:
-    log_unanswered_question(user_input, user_id)
-    respond(
-        blocks=[
-            {
-                "type": "section",
-                "text": {
-                    "type": "mrkdwn",
-                    "text": "> 🤷‍♂️ I couldn’t find an answer for: *{}*".format(user_input)
-                }
-            },
-            {
-                "type": "actions",
-                "elements": [
-                    {
-                        "type": "button",
-                        "text": {
-                            "type": "plain_text",
-                            "text": "📂 Open People Team Notion"
-                        },
-                        "url": "https://www.notion.so/teammetronome/People-and-Talent-174606305b6d80a497e9c1e0e31fea0b"
-                    },
-                    {
-                        "type": "button",
-                        "text": {
-                            "type": "plain_text",
-                            "text": "✉️ Email HR"
-                        },
-                        "url": "mailto:hr@metronome.com"
+    if answer:
+        respond(answer)
+    else:
+        log_unanswered_question(user_input, user_id)
+        respond(
+            blocks=[
+                {
+                    "type": "section",
+                    "text": {
+                        "type": "mrkdwn",
+                        "text": f"> 🤷‍♂️ I couldn’t find an answer for: *{user_input}*"
                     }
-                ]
-            }
-        ]
-    )
-    except Exception as e:
-        respond(f"⚠️ Error querying Notion: {e}")
+                },
+                {
+                    "type": "actions",
+                    "elements": [
+                        {
+                            "type": "button",
+                            "text": {"type": "plain_text", "text": "📂 Open People Team Notion"},
+                            "url": "https://www.notion.so/teammetronome/People-and-Talent-174606305b6d80a497e9c1e0e31fea0b"
+                        },
+                        {
+                            "type": "button",
+                            "text": {"type": "plain_text", "text": "✉️ Email HR"},
+                            "url": "mailto:hr@metronome.com"
+                        }
+                    ]
+                }
+            ]
+        )
 
 @flask_app.route("/slack/events", methods=["POST"])
 def slack_events():

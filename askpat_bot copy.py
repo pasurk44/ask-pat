@@ -10,8 +10,8 @@ app = App(
     signing_secret=os.environ.get("SLACK_SIGNING_SECRET")
 )
 notion = Client(auth=os.environ.get("NOTION_API_KEY"))
-QA_DB_ID = "228606305b6d80e1b2ffd9432fc1bcd6"
-LOG_DB_ID = "229606305b6d80cfb5b4f9f761607f87"
+QA_DB_ID = "228606305b6d80558c5dc532d55c4e1a"
+LOG_DB_ID = "229606305b6d80188acc000cf8f1d1e6"
 
 flask_app = Flask(__name__)
 handler = SlackRequestHandler(app)

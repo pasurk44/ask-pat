@@ -8,7 +8,7 @@ load_dotenv()
 
 notion = Client(auth=os.environ["NOTION_API_KEY"])
 ASKPAT_DB_ID = os.environ["ASKPAT_DB_ID"]
-UNANSWER_DB_ID = os.environ["UNANSWERED_LOG_DB_ID"]
+UNANSWERED_LOG_DB_ID = os.environ["UNANSWERED_LOG_DB_ID"]
 SLACK_BOT_TOKEN = os.environ["SLACK_BOT_TOKEN"]
 
 app = Flask(__name__)

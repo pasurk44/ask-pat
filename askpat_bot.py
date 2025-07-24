@@ -61,22 +61,38 @@ notion = Client(auth=NOTION_API_KEY)
 
 @app.route("/askpat", methods=["POST"])
 def askpat():
-    payload = request.form
-    question = extract_text(payload)
-
     try:
-        db_id = format_notion_id(QA_DATABASE_ID)
-        pages = notion.databases.query(database_id=db_id).get('results', [])
-        answer = search_answer(question, pages)
+        data = request.form
+        text = data.get("text", "")
+        user_id = data.get("user_id", "")
+
+        print(f"🔎 Received query from {user_id}: {text}")
+
+        # Query the QA database
+        pages = get_database_pages(ASKPAT_DB_ID)
+        answer = search_answer(text, pages)
 
         if answer:
-            return jsonify({"response_type": "in_channel", "text": answer})
-        else:
-            log_unanswered_question(notion, question)
-            return jsonify({"response_type": "ephemeral", "text": "🤔 I don't have an answer for that yet. I'll pass it on to the team!"})
+            return jsonify({
+                "response_type": "in_channel",
+                "text": f"🧠 {answer}"
+            })
+
+        # If no answer is found, log it
+        log_unanswered_question(text)
+
+        return jsonify({
+            "response_type": "ephemeral",
+            "text": "🤖 I couldn't find an answer. I've logged this for follow-up!"
+        })
+
     except Exception as e:
-        print("❌ ERROR in /askpat:", e)
-        return jsonify({"response_type": "ephemeral", "text": "Something went wrong. Please try again later."})
+        print(f"❌ ERROR in /askpat: {e}")
+        return jsonify({
+            "response_type": "ephemeral",
+            "text": "Something went wrong. Please try again later."
+        }), 200
+
 
 # 🔧 Default route (optional for testing)
 @app.route("/")

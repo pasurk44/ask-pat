@@ -12,25 +12,28 @@ notion = Client(auth=os.environ["NOTION_API_KEY"])
 ASKPAT_DB_ID = os.environ["ASKPAT_DB_ID"]
 UNANSWERED_LOG_DB_ID = os.environ["UNANSWERED_LOG_DB_ID"]
 
-def search_answer(user_input, pages):
-    user_input_lower = user_input.lower()
+def extract_rich_text(rich_text_array):
+    # Convert Notion rich text array to a plain string with hyperlinks
+    output = ""
+    for rt in rich_text_array:
+        text = rt["plain_text"]
+        link = rt.get("href")
+        if link:
+            output += f"<{link}|{text}>"
+        else:
+            output += text
+    return output
 
+def search_answer(query, pages):
+    query_lower = query.lower()
     for page in pages:
-        try:
-            topic_property = page['properties']['Topic']['title']
-            if not topic_property:
-                continue
-            topic_text = topic_property[0]['plain_text'].lower()
-            keywords = [k.strip() for k in topic_text.split(",")]
-
-            for keyword in keywords:
-                if keyword in user_input_lower:
-                    answer_property = page['properties'].get('Answer', {}).get('rich_text', [])
-                    if answer_property:
-                        return answer_property[0]['plain_text']
-        except (KeyError, IndexError):
+        topic_titles = page['properties']['Topic']['title']
+        if not topic_titles:
             continue
-
+        topic_text = topic_titles[0]['plain_text'].lower()
+        if query_lower in topic_text:
+            rich_text_answer = page['properties']['Answer']['rich_text']
+            return extract_rich_text(rich_text_answer)
     return None
 
 @app.route("/askpat", methods=["POST"])

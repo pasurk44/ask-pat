@@ -28,10 +28,24 @@ def query_notion_database(user_question):
     return None
 
 def log_unanswered_question(question):
-    notion.pages.create(
-        parent={"database_id": UNANSWER_DB_ID},
-        properties={"Name": {"title": [{"text": {"content": question}}]}}
-    )
+    try:
+        notion.pages.create(
+            parent={"database_id": UNANSWERED_LOG_DB_ID},
+            properties={
+                "Question": {
+                    "title": [
+                        {
+                            "text": {
+                                "content": question
+                            }
+                        }
+                    ]
+                }
+            }
+        )
+    except Exception as e:
+        print("Failed to log unanswered question:", e)
+
 
 def post_to_slack_channel(channel_id, text):
     url = "https://slack.com/api/chat.postMessage"

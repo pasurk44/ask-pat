@@ -12,19 +12,25 @@ notion = Client(auth=os.environ["NOTION_API_KEY"])
 ASKPAT_DB_ID = os.environ["ASKPAT_DB_ID"]
 UNANSWERED_LOG_DB_ID = os.environ["UNANSWERED_LOG_DB_ID"]
 
-def search_answer(question, pages):
-    question_lower = question.lower()
+def search_answer(user_input, pages):
+    user_input_lower = user_input.lower()
+
     for page in pages:
         try:
-            topic = page['properties']['Topic']['title'][0]['plain_text'].lower()
-            answer = page['properties']['Answer']['rich_text'][0]['plain_text']
-            print(f"🔍 Checking topic: {topic}")
-            if topic in question_lower:
-                print("✅ Match found!")
-                return answer
-        except (KeyError, IndexError) as e:
-            print(f"⚠️ Skipping page due to missing fields: {e}")
+            topic_property = page['properties']['Topic']['title']
+            if not topic_property:
+                continue
+            topic_text = topic_property[0]['plain_text'].lower()
+            keywords = [k.strip() for k in topic_text.split(",")]
+
+            for keyword in keywords:
+                if keyword in user_input_lower:
+                    answer_property = page['properties'].get('Answer', {}).get('rich_text', [])
+                    if answer_property:
+                        return answer_property[0]['plain_text']
+        except (KeyError, IndexError):
             continue
+
     return None
 
 @app.route("/askpat", methods=["POST"])

@@ -1,68 +1,87 @@
 import os
-import json
+import re
 import requests
 from flask import Flask, request, jsonify
+from notion_client import Client
+from dotenv import load_dotenv
 
-# Setup Flask app
-app = Flask(__name__)
+load_dotenv()
 
-# Notion setup
-NOTION_TOKEN = os.getenv("NOTION_TOKEN")
-QA_DATABASE_ID = os.getenv("QA_DATABASE_ID")
-LOG_DATABASE_ID = os.getenv("LOG_DATABASE_ID")
+# 🔐 Environment variables
+SLACK_BOT_TOKEN = os.getenv("SLACK_BOT_TOKEN")
+NOTION_API_KEY = os.getenv("NOTION_API_KEY")
+QA_DATABASE_ID = "228606305b6d80558c5dc532d55c4e1a"  # AskPaT DB
+UNANSWERED_LOG_ID = "229606305b6d80debb33fd0e62c02389"  # Log DB
 
-headers = {
-    "Authorization": f"Bearer {NOTION_TOKEN}",
-    "Content-Type": "application/json",
-    "Notion-Version": "2022-06-28"
-}
+# ⚙️ Format Notion UUID (dash-inserted 32-char)
+def format_notion_id(raw_id):
+    raw_id = raw_id.replace("-", "")
+    return f"{raw_id[0:8]}-{raw_id[8:12]}-{raw_id[12:16]}-{raw_id[16:20]}-{raw_id[20:32]}"
 
-def fetch_pages(database_id):
-    url = f"https://api.notion.com/v1/databases/{database_id}/query"
-    response = requests.post(url, headers=headers)
-    return response.json().get("results", [])
+# 🧠 Extract text from Slack slash command payload
+def extract_text(payload):
+    text = payload.get('text', '').strip()
+    return re.sub(r'[^a-zA-Z0-9\s\-,.?!]', '', text)
 
-def search_answer(query, pages):
-    query_lower = query.lower()
+# 🔍 Match question to topic in Notion DB
+def search_answer(question, pages):
+    question_lower = question.lower()
+
     for page in pages:
-        topic = page['properties']['Topic']['title'][0]['plain_text'].lower()
-        if query_lower in topic:
-            answer_blocks = page['properties']['Answer']['rich_text']
-            return answer_blocks[0]['plain_text'] if answer_blocks else "Answer pending."
+        try:
+            title_list = page['properties']['Topic']['title']
+            if not title_list:
+                print(f"⚠️ Skipped page with empty Topic: {page.get('id')}")
+                continue
+
+            topic = title_list[0]['plain_text'].lower()
+            if topic in question_lower:
+                answer_parts = page['properties']['Answer']['rich_text']
+                answer = ''.join([part['plain_text'] for part in answer_parts])
+                return answer.strip()
+        except KeyError as e:
+            print(f"⚠️ Missing expected property in page {page.get('id')}: {e}")
+            continue
+
     return None
 
-def log_question(question):
-    url = "https://api.notion.com/v1/pages"
-    data = {
-        "parent": {"database_id": LOG_DATABASE_ID},
-        "properties": {
-            "Question": {
-                "title": [{"text": {"content": question}}]
-            }
+# 📝 Log unanswered questions to Notion
+def log_unanswered_question(notion, question):
+    notion.pages.create(
+        parent={"database_id": format_notion_id(UNANSWERED_LOG_ID)},
+        properties={
+            "Question": {"title": [{"text": {"content": question}}]},
+            "Answered": {"checkbox": False}
         }
-    }
-    requests.post(url, headers=headers, data=json.dumps(data))
+    )
+
+# 🚀 Flask app and /askpat route
+app = Flask(__name__)
+notion = Client(auth=NOTION_API_KEY)
 
 @app.route("/askpat", methods=["POST"])
 def askpat():
-    text = request.form.get("text", "")
-    user = request.form.get("user_name", "Unknown")
+    payload = request.form
+    question = extract_text(payload)
 
-    pages = fetch_pages(QA_DATABASE_ID)
-    answer = search_answer(text, pages)
+    try:
+        db_id = format_notion_id(QA_DATABASE_ID)
+        pages = notion.databases.query(database_id=db_id).get('results', [])
+        answer = search_answer(question, pages)
 
-    if answer:
-        return jsonify({"response_type": "in_channel", "text": f"*Answer:* {answer}"})
-    else:
-        log_question(text)
-        return jsonify({
-            "response_type": "in_channel",
-            "text": f"🤖 No answer yet! Logged your question: *{text}*"
-        })
+        if answer:
+            return jsonify({"response_type": "in_channel", "text": answer})
+        else:
+            log_unanswered_question(notion, question)
+            return jsonify({"response_type": "ephemeral", "text": "🤔 I don't have an answer for that yet. I'll pass it on to the team!"})
+    except Exception as e:
+        print("❌ ERROR in /askpat:", e)
+        return jsonify({"response_type": "ephemeral", "text": "Something went wrong. Please try again later."})
 
-@app.route("/", methods=["GET"])
+# 🔧 Default route (optional for testing)
+@app.route("/")
 def home():
-    return "AskPat is alive!"
+    return "Ask PaT is running!"
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=8080)
+    app.run(debug=True)

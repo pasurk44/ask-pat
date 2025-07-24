@@ -68,13 +68,16 @@ def askpat():
     answer = query_notion_database(user_question)
 
     if not is_private:
-        post_to_slack_channel(channel_id, f"_<@{request.form.get('user_id')}> asked:_ {user_question}")
+        post_to_slack_channel(channel_id, f"<@{request.form.get('user_id')}> asked: {user_question}")
 
     if answer:
         message = answer
     else:
         message = "Sorry, I don't know the answer yet. I've logged your question!"
-        log_unanswered_question(user_question)
+        try:
+            log_unanswered_question(user_question)
+        except Exception as e:
+            print("Failed to log unanswered question:", e)
 
     return jsonify({"response_type": "in_channel", "text": message})
 

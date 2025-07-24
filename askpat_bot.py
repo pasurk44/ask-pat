@@ -1,68 +1,45 @@
+
 import os
-import json
-import requests
-from flask import Flask, request, jsonify
+from notion_client import Client
+from dotenv import load_dotenv
 
-# Setup Flask app
-app = Flask(__name__)
+# Load environment variables from .env file
+load_dotenv()
 
-# Notion setup
-NOTION_TOKEN = os.getenv("NOTION_TOKEN")
-QA_DATABASE_ID = os.getenv("QA_DATABASE_ID")
-LOG_DATABASE_ID = os.getenv("LOG_DATABASE_ID")
+NOTION_API_KEY = os.getenv("NOTION_API_KEY") or "your-secret-key-here"
 
-headers = {
-    "Authorization": f"Bearer {NOTION_TOKEN}",
-    "Content-Type": "application/json",
-    "Notion-Version": "2022-06-28"
-}
+# Notion database IDs
+ASKPAT_DB_ID = "22860630-5b6d-8055-8c5d-c532d55c4e1a"
+LOG_DB_ID = "22960630-5b6d-80de-bb33-fd0e62c02389"
 
-def fetch_pages(database_id):
-    url = f"https://api.notion.com/v1/databases/{database_id}/query"
-    response = requests.post(url, headers=headers)
-    return response.json().get("results", [])
+# Initialize the Notion client
+notion = Client(auth=NOTION_API_KEY)
 
-def search_answer(query, pages):
-    query_lower = query.lower()
-    for page in pages:
-        topic = page['properties']['Topic']['title'][0]['plain_text'].lower()
-        if query_lower in topic:
-            answer_blocks = page['properties']['Answer']['rich_text']
-            return answer_blocks[0]['plain_text'] if answer_blocks else "Answer pending."
-    return None
+# Query AskPaT database
+try:
+    print(f"Querying AskPaT database ID: {ASKPAT_DB_ID}")
+    response = notion.databases.query(database_id=ASKPAT_DB_ID)
+    print("✅ Success! Fetched AskPaT database:")
+    print(response)
+except Exception as e:
+    print("❌ ERROR querying AskPaT DB:", e)
 
-def log_question(question):
-    url = "https://api.notion.com/v1/pages"
-    data = {
-        "parent": {"database_id": LOG_DATABASE_ID},
-        "properties": {
+# (Optional) Test logging to Unanswered DB
+try:
+    print(f"Logging test question to Log DB: {LOG_DB_ID}")
+    response = notion.pages.create(
+        parent={ "database_id": LOG_DB_ID },
+        properties={
             "Question": {
-                "title": [{"text": {"content": question}}]
+                "title": [{
+                    "text": {
+                        "content": "This is a test question log entry"
+                    }
+                }]
             }
         }
-    }
-    requests.post(url, headers=headers, data=json.dumps(data))
-
-@app.route("/askpat", methods=["POST"])
-def askpat():
-    text = request.form.get("text", "")
-    user = request.form.get("user_name", "Unknown")
-
-    pages = fetch_pages(QA_DATABASE_ID)
-    answer = search_answer(text, pages)
-
-    if answer:
-        return jsonify({"response_type": "in_channel", "text": f"*Answer:* {answer}"})
-    else:
-        log_question(text)
-        return jsonify({
-            "response_type": "in_channel",
-            "text": f"🤖 No answer yet! Logged your question: *{text}*"
-        })
-
-@app.route("/", methods=["GET"])
-def home():
-    return "AskPat is alive!"
-
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=8080)
+    )
+    print("✅ Successfully logged test entry:")
+    print(response)
+except Exception as e:
+    print("❌ ERROR logging to Log DB:", e)

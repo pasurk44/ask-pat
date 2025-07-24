@@ -14,20 +14,27 @@ SLACK_SIGNING_SECRET = os.environ["SLACK_SIGNING_SECRET"]
 
 app = Flask(__name__)
 
-def query_notion_database(query):
-    response = notion.databases.query(
-        **{
-            "database_id": ASKPAT_DB_ID,
-        }
-    )
-    query = query.lower()
-    for result in response.get("results", []):
-        props = result["properties"]
-        keywords = props["Topic"]["title"][0]["text"]["content"].lower().split(", ")
-        answer = props["Answer"]["rich_text"][0]["text"]["content"]
-        if any(word in query for word in keywords):
-            return answer
+def query_notion_database(user_question):
+    response = notion.databases.query(database_id=ASKPAT_DB_ID)
+    results = response.get("results", [])
+    
+    for page in results:
+        props = page["properties"]
+        title_field = props.get("Topic", {}).get("title", [])
+        
+        # ✅ Skip rows without a title
+        if not title_field:
+            continue
+
+        keywords = title_field[0]["text"]["content"].lower().split(", ")
+
+        if any(keyword.strip() in user_question.lower() for keyword in keywords):
+            answer_field = props.get("Answer", {}).get("rich_text", [])
+            if answer_field:
+                return "".join([t["text"]["content"] for t in answer_field])
+    
     return None
+
 
 def log_unanswered_question(question):
     notion.pages.create(

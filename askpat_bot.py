@@ -1,74 +1,79 @@
 import os
-import re
 import requests
 from flask import Flask, request, jsonify
 from notion_client import Client
 from dotenv import load_dotenv
 
+# Load environment variables
 load_dotenv()
 
-# 🔐 Environment variables
-SLACK_BOT_TOKEN = os.getenv("SLACK_BOT_TOKEN")
-NOTION_API_KEY = os.getenv("NOTION_API_KEY")
-QA_DATABASE_ID = "228606305b6d80558c5dc532d55c4e1a"  # AskPaT DB
-UNANSWERED_LOG_ID = "229606305b6d80debb33fd0e62c02389"  # Log DB
+# Set up Flask app
+app = Flask(__name__)
 
-# ⚙️ Format Notion UUID (dash-inserted 32-char)
+# Notion setup
+NOTION_API_KEY = os.getenv("NOTION_API_KEY")
+ASKPAT_DB_ID = os.getenv("ASKPAT_DB_ID")
+UNANSWERED_DB_ID = os.getenv("UNANSWERED_DB_ID")
+notion = Client(auth=NOTION_API_KEY)
+
+# Helper to format Notion DB ID
 def format_notion_id(raw_id):
     raw_id = raw_id.replace("-", "")
     return f"{raw_id[0:8]}-{raw_id[8:12]}-{raw_id[12:16]}-{raw_id[16:20]}-{raw_id[20:32]}"
 
-# 🧠 Extract text from Slack slash command payload
-def extract_text(payload):
-    text = payload.get('text', '').strip()
-    return re.sub(r'[^a-zA-Z0-9\s\-,.?!]', '', text)
+# Get all pages in a Notion DB
+def get_database_pages(database_id):
+    formatted_id = format_notion_id(database_id)
+    response = notion.databases.query(database_id=formatted_id)
+    return response.get("results", [])
 
-# 🔍 Match question to topic in Notion DB
-def search_answer(question, pages):
-    question_lower = question.lower()
-
+# Search for matching topic in Notion pages
+def search_answer(query, pages):
+    query_lower = query.lower()
     for page in pages:
         try:
-            title_list = page['properties']['Topic']['title']
-            if not title_list:
-                print(f"⚠️ Skipped page with empty Topic: {page.get('id')}")
-                continue
-
-            topic = title_list[0]['plain_text'].lower()
-            if topic in question_lower:
-                answer_parts = page['properties']['Answer']['rich_text']
-                answer = ''.join([part['plain_text'] for part in answer_parts])
-                return answer.strip()
-        except KeyError as e:
-            print(f"⚠️ Missing expected property in page {page.get('id')}: {e}")
+            topic = page['properties']['Topic']['title'][0]['plain_text'].lower()
+            if topic in query_lower:
+                answer_blocks = page['properties']['Answer']['rich_text']
+                return answer_blocks[0]['plain_text'] if answer_blocks else None
+        except (KeyError, IndexError):
             continue
-
     return None
 
-# 📝 Log unanswered questions to Notion
-def log_unanswered_question(notion, question):
-    notion.pages.create(
-        parent={"database_id": format_notion_id(UNANSWERED_LOG_ID)},
-        properties={
-            "Question": {"title": [{"text": {"content": question}}]},
-            "Answered": {"checkbox": False}
-        }
-    )
+# Log unanswered question
+def log_unanswered_question(query):
+    try:
+        formatted_id = format_notion_id(UNANSWERED_DB_ID)
+        notion.pages.create(
+            parent={"database_id": formatted_id},
+            properties={
+                "Question": {
+                    "title": [
+                        {
+                            "text": {
+                                "content": query
+                            }
+                        }
+                    ]
+                }
+            }
+        )
+        print(f"📝 Logged unanswered question: {query}")
+    except Exception as e:
+        print(f"⚠️ Failed to log unanswered question: {e}")
 
-# 🚀 Flask app and /askpat route
-app = Flask(__name__)
-notion = Client(auth=NOTION_API_KEY)
-
+# Slack endpoint
 @app.route("/askpat", methods=["POST"])
 def askpat():
     try:
         data = request.form
+        print(f"📥 Raw request.form: {data}")
+
         text = data.get("text", "")
         user_id = data.get("user_id", "")
 
-        print(f"🔎 Received query from {user_id}: {text}")
+        print(f"🔎 Query from {user_id}: {text}")
 
-        # Query the QA database
         pages = get_database_pages(ASKPAT_DB_ID)
         answer = search_answer(text, pages)
 
@@ -78,7 +83,6 @@ def askpat():
                 "text": f"🧠 {answer}"
             })
 
-        # If no answer is found, log it
         log_unanswered_question(text)
 
         return jsonify({
@@ -93,14 +97,12 @@ def askpat():
             "text": "Something went wrong. Please try again later."
         }), 200
 
-
-# 🔧 Default route (optional for testing)
+# Test route
 @app.route("/")
 def home():
     return "Ask PaT is running!"
 
+# Run the app on 0.0.0.0 for Render
 if __name__ == "__main__":
-  port = int(os.environ.get("PORT", 5000))
-  app.run(host="0.0.0.0", port=port)
-
-
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port)

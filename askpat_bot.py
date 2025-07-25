@@ -3,6 +3,7 @@ from flask import Flask, request, jsonify
 from notion_client import Client
 from dotenv import load_dotenv
 import requests
+from datetime import datetime
 
 load_dotenv()
 
@@ -13,18 +14,13 @@ SLACK_BOT_TOKEN = os.environ["SLACK_BOT_TOKEN"]
 
 app = Flask(__name__)
 
-import re
-
 def query_notion_database(user_question):
     response = notion.databases.query(database_id=ASKPAT_DB_ID)
     for result in response.get("results", []):
         props = result["properties"]
         try:
             keywords = props["Topic"]["title"][0]["text"]["content"].lower().split(", ")
-
-            # Join all rich_text blocks into one string
-            answer_blocks = props["Answer"]["rich_text"]
-            answer = "".join([block["text"]["content"] for block in answer_blocks])
+            answer = props["Answer"]["rich_text"][0]["text"]["content"]
 
             for word in keywords:
                 if word in user_question.lower():
@@ -33,7 +29,7 @@ def query_notion_database(user_question):
             continue
     return None
 
-def log_unanswered_question(question):
+def log_unanswered_question(question, user_id):
     try:
         notion.pages.create(
             parent={"database_id": UNANSWERED_LOG_DB_ID},
@@ -46,12 +42,25 @@ def log_unanswered_question(question):
                             }
                         }
                     ]
+                },
+                "User": {
+                    "rich_text": [
+                        {
+                            "text": {
+                                "content": user_id
+                            }
+                        }
+                    ]
+                },
+                "Timestamp": {
+                    "date": {
+                        "start": datetime.now().isoformat()
+                    }
                 }
             }
         )
     except Exception as e:
         print("Failed to log unanswered question:", e)
-
 
 def post_to_slack_channel(channel_id, text):
     url = "https://slack.com/api/chat.postMessage"
@@ -68,20 +77,21 @@ def post_to_slack_channel(channel_id, text):
 @app.route("/askpat", methods=["POST"])
 def askpat():
     user_question = request.form.get("text")
+    user_id = request.form.get("user_id")
     channel_id = request.form.get("channel_id")
     is_private = channel_id.startswith("D")
 
     answer = query_notion_database(user_question)
 
     if not is_private:
-        post_to_slack_channel(channel_id, f"<@{request.form.get('user_id')}> asked: {user_question}")
+        post_to_slack_channel(channel_id, f"<@{user_id}> asked: {user_question}")
 
     if answer:
         message = answer
     else:
         message = "Sorry, I don't know the answer yet. I've logged your question!"
         try:
-            log_unanswered_question(user_question)
+            log_unanswered_question(user_question, user_id)
         except Exception as e:
             print("Failed to log unanswered question:", e)
 

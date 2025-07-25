@@ -80,7 +80,7 @@ def askpat():
             print("Failed to log unanswered question:", e)
 
     response_type = "ephemeral" if is_private else "in_channel"
-return jsonify({"response_type": response_type, "text": message})
+    return jsonify({"response_type": response_type, "text": message})
 
 
 if __name__ == "__main__":

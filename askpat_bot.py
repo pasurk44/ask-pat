@@ -92,9 +92,9 @@ def askpat():
         post_to_slack_channel(channel_id, f"<@{user_id}> asked: {user_question}")
 
     if answer:
-    message = answer
+        message = answer
     else:
-    message = "Sorry, I don't know the answer yet. I've logged your question!"
+        message = "Sorry, I don't know the answer yet. I've logged your question!"
         try:
             user_id = request.form.get("user_id")
             user_name = f"<@{user_id}>" if user_id else "Unknown"

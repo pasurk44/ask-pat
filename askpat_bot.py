@@ -31,7 +31,9 @@ def query_notion_database(user_question):
             continue
     return None
 
-def log_unanswered_question(question, user_id):
+from datetime import datetime
+
+def log_unanswered_question(question, user_name):
     try:
         notion.pages.create(
             parent={"database_id": UNANSWERED_LOG_DB_ID},
@@ -45,24 +47,25 @@ def log_unanswered_question(question, user_id):
                         }
                     ]
                 },
-                "User": {
+                "Asked By": {
                     "rich_text": [
                         {
                             "text": {
-                                "content": user_id
+                                "content": user_name
                             }
                         }
                     ]
                 },
                 "Timestamp": {
                     "date": {
-                        "start": datetime.now().isoformat()
+                        "start": datetime.utcnow().isoformat()
                     }
                 }
             }
         )
     except Exception as e:
         print("Failed to log unanswered question:", e)
+
 
 def post_to_slack_channel(channel_id, text):
     url = "https://slack.com/api/chat.postMessage"
@@ -89,13 +92,15 @@ def askpat():
         post_to_slack_channel(channel_id, f"<@{user_id}> asked: {user_question}")
 
     if answer:
-        message = answer
-    else:
-        message = "Sorry, I don't know the answer yet. I've logged your question!"
-        try:
-            log_unanswered_question(user_question, user_id)
-        except Exception as e:
-            print("Failed to log unanswered question:", e)
+    message = answer
+else:
+    message = "Sorry, I don't know the answer yet. I've logged your question!"
+    try:
+        user_id = request.form.get("user_id")
+        user_name = f"<@{user_id}>" if user_id else "Unknown"
+        log_unanswered_question(user_question, user_name)
+    except Exception as e:
+        print("Failed to log unanswered question:", e)
 
     return jsonify({"response_type": "in_channel", "text": message})
 

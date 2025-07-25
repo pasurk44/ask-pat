@@ -19,7 +19,16 @@ def query_notion_database(user_question):
         props = result["properties"]
         try:
             keywords = props["Topic"]["title"][0]["text"]["content"].lower().split(", ")
-            answer = props["Answer"]["rich_text"][0]["text"]["content"]
+            raw_answer = props["Answer"]["rich_text"][0]["text"]["content"]
+
+# Look for URLs and convert them to Slack-style hyperlinks
+# Look for URLs and convert them to Slack-style hyperlinks
+import re
+def slackify_links(text):
+    return re.sub(r'(https?://[^\s<>()]+)', r'<\1>', text)
+
+answer = slackify_links(raw_answer)
+
             for word in keywords:
                 if word in user_question.lower():
                     return answer

@@ -44,13 +44,13 @@ def askpat():
 
     answer = query_notion_database(user_question)
 
-    if answer:
-        message = answer
-    else:
-        message = "Sorry, I don't know the answer yet. I've logged your question!"
-        log_unanswered_question(user_question, user=user_id)
+   if answer:
+    message = f"You asked: *{user_question}*\n\n{answer}"
+else:
+    message = f"You asked: *{user_question}*\n\nSorry, I don't know the answer yet. I've logged your question!"
+    log_unanswered_question(user_question)
 
-    return jsonify({"response_type": "ephemeral", "text": message})
+return jsonify({"response_type": "ephemeral", "text": message})
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=10000)

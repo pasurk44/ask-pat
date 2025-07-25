@@ -13,6 +13,12 @@ SLACK_BOT_TOKEN = os.environ["SLACK_BOT_TOKEN"]
 
 app = Flask(__name__)
 
+import re
+
+def slackify_links(text):
+    # Match raw links and convert to clickable Slack links
+    return re.sub(r'(https?://[^\s]+)', r'<\1>', text)
+
 def query_notion_database(user_question):
     response = notion.databases.query(database_id=ASKPAT_DB_ID)
     for result in response.get("results", []):
@@ -20,14 +26,7 @@ def query_notion_database(user_question):
         try:
             keywords = props["Topic"]["title"][0]["text"]["content"].lower().split(", ")
             raw_answer = props["Answer"]["rich_text"][0]["text"]["content"]
-
-# Look for URLs and convert them to Slack-style hyperlinks
-# Look for URLs and convert them to Slack-style hyperlinks
-import re
-def slackify_links(text):
-    return re.sub(r'(https?://[^\s<>()]+)', r'<\1>', text)
-
-answer = slackify_links(raw_answer)
+            answer = slackify_links(raw_answer)
 
             for word in keywords:
                 if word in user_question.lower():

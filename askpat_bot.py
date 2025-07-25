@@ -20,7 +20,9 @@ def query_notion_database(user_question):
         props = result["properties"]
         try:
             keywords = props["Topic"]["title"][0]["text"]["content"].lower().split(", ")
-            answer = props["Answer"]["rich_text"][0]["text"]["content"]
+            # Join all rich_text blocks into one string
+            answer_blocks = props["Answer"]["rich_text"]
+            answer = "".join([block["text"]["content"] for block in answer_blocks])
 
             for word in keywords:
                 if word in user_question.lower():

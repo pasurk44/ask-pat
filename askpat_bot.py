@@ -31,9 +31,7 @@ def query_notion_database(user_question):
             continue
     return None
 
-from datetime import datetime
-
-def log_unanswered_question(question, user_name):
+def log_unanswered_question(question, user_id):
     try:
         notion.pages.create(
             parent={"database_id": UNANSWERED_LOG_DB_ID},
@@ -47,25 +45,24 @@ def log_unanswered_question(question, user_name):
                         }
                     ]
                 },
-                "Asked By": {
+                "User": {
                     "rich_text": [
                         {
                             "text": {
-                                "content": user_name
+                                "content": user_id
                             }
                         }
                     ]
                 },
                 "Timestamp": {
                     "date": {
-                        "start": datetime.utcnow().isoformat()
+                        "start": datetime.now().isoformat()
                     }
                 }
             }
         )
     except Exception as e:
         print("Failed to log unanswered question:", e)
-
 
 def post_to_slack_channel(channel_id, text):
     url = "https://slack.com/api/chat.postMessage"
@@ -96,9 +93,7 @@ def askpat():
     else:
         message = "Sorry, I don't know the answer yet. I've logged your question!"
         try:
-            user_id = request.form.get("user_id")
-            user_name = f"<@{user_id}>" if user_id else "Unknown"
-            log_unanswered_question(user_question, user_name)
+            log_unanswered_question(user_question, user_id)
         except Exception as e:
             print("Failed to log unanswered question:", e)
 

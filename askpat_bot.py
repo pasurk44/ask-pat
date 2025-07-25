@@ -93,14 +93,14 @@ def askpat():
 
     if answer:
     message = answer
-else:
+    else:
     message = "Sorry, I don't know the answer yet. I've logged your question!"
-    try:
-        user_id = request.form.get("user_id")
-        user_name = f"<@{user_id}>" if user_id else "Unknown"
-        log_unanswered_question(user_question, user_name)
-    except Exception as e:
-        print("Failed to log unanswered question:", e)
+        try:
+            user_id = request.form.get("user_id")
+            user_name = f"<@{user_id}>" if user_id else "Unknown"
+            log_unanswered_question(user_question, user_name)
+        except Exception as e:
+            print("Failed to log unanswered question:", e)
 
     return jsonify({"response_type": "in_channel", "text": message})
 

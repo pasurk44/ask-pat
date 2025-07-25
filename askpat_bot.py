@@ -95,7 +95,7 @@ def askpat():
         except Exception as e:
             print("Failed to log unanswered question:", e)
 
-    return jsonify({"response_type": "in_channel", "text": message})
+    return jsonify({"response_type": "ephemeral", "text": message})
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=10000)

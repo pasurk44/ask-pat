@@ -8,7 +8,7 @@ load_dotenv()
 
 notion = Client(auth=os.environ["NOTION_API_KEY"])
 ASKPAT_DB_ID = os.environ["ASKPAT_DB_ID"]
-UNANSWERED_LOG_DB_ID = os.environ["UNANSWERED_LOG_DB_ID"]
+UNANSWER_DB_ID = os.environ["UNANSWERED_LOG_DB_ID"]
 SLACK_BOT_TOKEN = os.environ["SLACK_BOT_TOKEN"]
 
 app = Flask(__name__)
@@ -28,24 +28,10 @@ def query_notion_database(user_question):
     return None
 
 def log_unanswered_question(question):
-    try:
-        notion.pages.create(
-            parent={"database_id": UNANSWERED_LOG_DB_ID},
-            properties={
-                "Question": {
-                    "title": [
-                        {
-                            "text": {
-                                "content": question
-                            }
-                        }
-                    ]
-                }
-            }
-        )
-    except Exception as e:
-        print("Failed to log unanswered question:", e)
-
+    notion.pages.create(
+        parent={"database_id": UNANSWER_DB_ID},
+        properties={"Name": {"title": [{"text": {"content": question}}]}}
+    )
 
 def post_to_slack_channel(channel_id, text):
     url = "https://slack.com/api/chat.postMessage"
@@ -68,18 +54,15 @@ def askpat():
     answer = query_notion_database(user_question)
 
     if not is_private:
-        post_to_slack_channel(channel_id, f"<@{request.form.get('user_id')}> asked: {user_question}")
+        post_to_slack_channel(channel_id, f"_<@{request.form.get('user_id')}> asked:_ {user_question}")
 
     if answer:
         message = answer
     else:
         message = "Sorry, I don't know the answer yet. I've logged your question!"
-        try:
-            log_unanswered_question(user_question)
-        except Exception as e:
-            print("Failed to log unanswered question:", e)
+        log_unanswered_question(user_question)
 
-    return jsonify({"response_type": "ephemeral", "text": message})
+    return jsonify({"response_type": "in_channel", "text": message})
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=10000)
